@@ -19,13 +19,14 @@ public class LJNetwork {
     public static var successCode = 200
     public static var messageKey: String?
 
-    public static let headers = [String: String]()
-    public static let defaultParams = [String: Any]()
+    public static var headers = [String: String]()
+    public static var defaultParams = [String: Any]()
 
     public static func get<T>(
         _ urlOrPath: String,
         params: [String: Any]? = nil,
         extraHeaders: [String: String]? = nil,
+        autoParse: Bool = true,
         success: @escaping (T) -> Void,
         failure: @escaping (LJNetworkError) -> Void
     ) {
@@ -34,6 +35,7 @@ public class LJNetwork {
             method: .GET,
             params: params,
             extraHeaders: extraHeaders,
+            autoParse: autoParse,
             success: success,
             failure: failure
         )
@@ -43,6 +45,7 @@ public class LJNetwork {
         _ urlOrPath: String,
         params: [String: Any]? = nil,
         extraHeaders: [String: String]? = nil,
+        autoParse: Bool = true,
         success: @escaping (T) -> Void,
         failure: @escaping (LJNetworkError) -> Void
     ) {
@@ -51,6 +54,7 @@ public class LJNetwork {
             method: .POST,
             params: params,
             extraHeaders: extraHeaders,
+            autoParse: autoParse,
             success: success,
             failure: failure
         )
@@ -61,10 +65,11 @@ public class LJNetwork {
         method: LJHTTPMethod,
         params: [String: Any]? = nil,
         extraHeaders: [String: String]? = nil,
+        autoParse: Bool = true,
         success: @escaping (T) -> Void,
         failure: @escaping (LJNetworkError) -> Void
     ) {
-        guard codeKey != nil, messageKey != nil else {
+        guard !autoParse || (codeKey != nil && messageKey != nil) else {
             debugPrint("请设置LJNetwork codekey、messageKey")
             return
         }
@@ -99,26 +104,31 @@ public class LJNetwork {
                 debugPrint("\(jsonData)")
                 do {
                     let dict = try JSONSerialization.jsonObject(with: jsonData, options: .mutableContainers) as! [String: Any]
-                    let code = dict[codeKey!] as? Int ?? 0
-
-                    if code == successCode {
-                        if let tType = T.self as? Decodable.Type {
-                            let model = try JSONDecoder().decode(tType, from: jsonData) as! T
-                            success(model)
+                    
+                    if autoParse {
+                        let code = dict[codeKey!] as? Int
+                        
+                        if code == nil || code == successCode {
+                            if let tType = T.self as? Decodable.Type {
+                                let model = try JSONDecoder().decode(tType, from: jsonData) as! T
+                                success(model)
+                            } else {
+                                success(dict as! T)
+                            }
                         } else {
-                            success(dict as! T)
+                            debugPrint(response.debugDescription)
+                            if let bodyData = response.request?.httpBody {
+                                let str = String(data: bodyData, encoding: String.Encoding.utf8)
+                                debugPrint("request parmas:\(str ?? "")")
+                            }
+                            failure(LJNetworkError(
+                                code: code ?? 10002,
+                                message: dict[messageKey!] as? String ?? "",
+                                url: response.response?.url?.absoluteString ?? ""
+                            ))
                         }
-                    } else {
-                        debugPrint(response.debugDescription)
-                        if let bodyData = response.request?.httpBody {
-                            let str = String(data: bodyData, encoding: String.Encoding.utf8)
-                            debugPrint("request parmas:\(str ?? "")")
-                        }
-                        failure(LJNetworkError(
-                            code: code,
-                            message: dict[messageKey!] as? String ?? "",
-                            url: response.response?.url?.absoluteString ?? ""
-                        ))
+                    }else {
+                        success(dict as! T)
                     }
                 } catch {
                     let nsError = error as NSError
