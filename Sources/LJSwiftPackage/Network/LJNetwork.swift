@@ -10,7 +10,7 @@ import Alamofire
 
 // MARK: - LJNetwork
 
-public class LJNetwork {
+public enum LJNetwork {
     public static var baseUrl: String = "" {
         didSet {}
     }
@@ -75,7 +75,7 @@ public class LJNetwork {
         }
 
         var url = ""
-        if urlOrPath.hasSuffix("http") || urlOrPath.hasSuffix("https") {
+        if urlOrPath.hasPrefix("http") || urlOrPath.hasPrefix("https") {
             url = urlOrPath
         } else {
             url = baseUrl + urlOrPath
@@ -104,10 +104,10 @@ public class LJNetwork {
                 debugPrint("\(jsonData)")
                 do {
                     let dict = try JSONSerialization.jsonObject(with: jsonData, options: .mutableContainers) as! [String: Any]
-                    
+
                     if autoParse {
                         let code = dict[codeKey!] as? Int
-                        
+
                         if code == nil || code == successCode {
                             if let tType = T.self as? Decodable.Type {
                                 let model = try JSONDecoder().decode(tType, from: jsonData) as! T
@@ -127,7 +127,7 @@ public class LJNetwork {
                                 url: response.response?.url?.absoluteString ?? ""
                             ))
                         }
-                    }else {
+                    } else {
                         success(dict as! T)
                     }
                 } catch {
